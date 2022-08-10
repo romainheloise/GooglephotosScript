@@ -144,6 +144,9 @@ const _findItems = async () => {
     return result
   }
   for (const folderName of folders) {
+    if (folderName === ".gitignore") {
+      continue
+    }
     const regex = `${PHOTOS_FOLDER}/${folderName}/**/*(*.jpg|*.png|*.jpeg|*.JPEG|*.JPG|*.mp4|*.AVI|*.avi|*.mov|*.MOV|*.MP4)`
     console.log("LOOKING FOR ITEM IN " + folderName)
     const items = await new Promise((resolve) => {
@@ -192,7 +195,7 @@ const setTokens = (tokens) => {
   PHOTOS = new Photos(TOKEN);
   REFRESH_TOKEN = refresh_token ? _saveRefreshToken(refresh_token) : _getRefreshToken()
   oauth2Client.setCredentials({ refresh_token: REFRESH_TOKEN, forceRefreshOnFailure: true });
-  console.log({TOKEN,PHOTOS,REFRESH_TOKEN})
+  console.log({ TOKEN, PHOTOS, REFRESH_TOKEN })
 }
 
 const _saveRefreshToken = async (refreshToken) => {
