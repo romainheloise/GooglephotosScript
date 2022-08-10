@@ -108,18 +108,18 @@ const _uploadPics = async (album, files) => {
   const result = []
   for (const fileData of files) {
     const { file, directoryPath } = fileData
-    const uploadedItem = await _uploadPic(album.id, file, directoryPath)
+    const uploadedItem = await _uploadPic(album, file, directoryPath)
     result.push(uploadedItem)
   }
   console.log(result.length + " PHOTOS CREATED FOR ALBUM " + album.title);
   return result
 }
 
-const _uploadPic = async (albumId, file, directoryPath, retry = 0) => {
+const _uploadPic = async (album, file, directoryPath, retry = 0) => {
   try {
-    console.log("CREATING PHOTO " + file.name + " FOR ALBUM" + albumId);
-    const createdPhoto = await PHOTOS.mediaItems.upload(albumId, file.name, directoryPath, "")
-    console.log("PHOTO " + file.name + " CREATED FOR ALBUM" + albumId);
+    console.log("CREATING PHOTO " + file.name + " FOR ALBUM" + album.title);
+    const createdPhoto = await PHOTOS.mediaItems.upload(album.id, file.name, directoryPath, "")
+    console.log("PHOTO " + file.name + " CREATED FOR ALBUM" + album.title);
     return createdPhoto
   } catch (err) {
     console.warn("RETRYING AFTER FAIL", err)
@@ -131,7 +131,7 @@ const _uploadPic = async (albumId, file, directoryPath, retry = 0) => {
     console.log("END DELAY")
     const incRetry = retry + 1
     if (retry <= 10) {
-      await _uploadPic(albumId, file, directoryPath, incRetry)
+      await _uploadPic(album.id, file, directoryPath, incRetry)
     }
     console.log("CHIEEEEEERRR");
   }
@@ -183,22 +183,24 @@ const _delay = async (value = 3000) => {
 const _refreshToken = async () => {
   const tokens = await new Promise((resolve) => {
     oauth2Client.refreshAccessToken((err, credentials) => {
+      console.log("ERROR REFESHING TOKEN", err)
       resolve(credentials)
     })
   })
+  console.log("REFRESHED TOKENS | ", tokens);
   setTokens(tokens)
 }
 
-const setTokens = (tokens) => {
+const setTokens = async (tokens) => {
   const { access_token, refresh_token } = tokens;
   TOKEN = access_token;
   PHOTOS = new Photos(TOKEN);
-  REFRESH_TOKEN = refresh_token ? _saveRefreshToken(refresh_token) : _getRefreshToken()
+  REFRESH_TOKEN = refresh_token ? _saveRefreshToken(refresh_token) : await _getRefreshToken()
   oauth2Client.setCredentials({ refresh_token: REFRESH_TOKEN, forceRefreshOnFailure: true });
-  console.log({ TOKEN, PHOTOS, REFRESH_TOKEN })
+  console.log("SETTED TOKENS | ", { TOKEN, REFRESH_TOKEN })
 }
 
-const _saveRefreshToken = async (refreshToken) => {
+const _saveRefreshToken = (refreshToken) => {
   fs.writeFileSync(REFRESH_TOKEN_JSON_PATH, JSON.stringify({ refresh_token: refreshToken }), 'utf8')
   return refreshToken
 }
@@ -224,3 +226,5 @@ const _checkAuth = async () => {
   await _refreshToken()
   return true
 }
+
+// ALBUM FAILED : ALBUMAMzSRvLoO68nK1IU-H6jZTaJ_rMlucz40i5OciQTC3gwxZ9CyjltbiVddy5JqS5q8l4SWayaaaYK
