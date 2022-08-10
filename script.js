@@ -11,6 +11,7 @@ const path = require("path")
 const slugify = require("slugify")
 
 const PHOTOS_FOLDER = "./PHOTOS"
+const REFRESH_TOKEN_JSON_PATH = "./REFRESH_TOKEN.json"
 
 const YOUR_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const YOUR_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
@@ -26,6 +27,7 @@ google.options({ auth: oauth2Client });
 
 let PHOTOS = undefined;
 let TOKEN = undefined;
+let REFRESH_TOKEN = undefined;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -34,7 +36,7 @@ app.listen(SERVER_PORT, () => {
   console.log(`Server is listening on : ${SERVER_PORT}`);
 });
 
-app.get('/', async (req, res) => {
+app.get('/auth/google', async (req, res) => {
   const scopes = [
     Photos.Scopes.READ_ONLY,
     Photos.Scopes.SHARING,
@@ -47,7 +49,6 @@ app.get('/', async (req, res) => {
   });
 
   oauth2Client.on('tokens', (tokens) => {
-    console.log("INSIDE FUNC de google", tokens);
     if (tokens.refresh_token) {
       // store the refresh_token in my database!
       console.log(tokens.refresh_token);
@@ -60,11 +61,16 @@ app.get('/', async (req, res) => {
 app.get('/auth/google/callback/', async (req, res) => {
   const { code } = req.query;
   const { tokens } = await oauth2Client.getToken(code);
-  initTokens(tokens)
+  setTokens(tokens)
   res.status(200).send(tokens);
 });
 
 app.get("/albums/create/bulk", async (req, res) => {
+  const isAuth = await _checkAuth()
+  if (!isAuth) {
+    res.status(401)
+    return
+  }
   const items = await _findItems()
   const result = await _createAlbumAndPostPhotos(items)
   res.status(200).send(result)
@@ -76,11 +82,14 @@ const _createAlbumAndPostPhotos = async (items) => {
     const createdAlbum = await _createAlbum(item.folderName)
     console.log("!!!!!!!!!!!")
     console.log("!!!!!!!!!!!")
-    console.log("ALBUM" + createdAlbum.id + "CREE");
+    console.log("ALBUM" + createdAlbum.title + "CREE");
     console.log("!!!!!!!!!!!")
     console.log("!!!!!!!!!!!")
-    const uploadedItems = await _uploadPics(createdAlbum.id, item.items)
-    result.push(uploadedItems)
+    const uploadedItems = await _uploadPics(createdAlbum, item.items)
+    const stats = {
+      [createdAlbum.title]: uploadedItems.length
+    }
+    result.push(stats)
   }
   console.log("!!!!!!!!!!!")
   console.log("!!!!!!!!!!!")
@@ -95,14 +104,14 @@ const _createAlbum = async (title) => {
   return createdAlbum;
 };
 
-const _uploadPics = async (albumId, files) => {
+const _uploadPics = async (album, files) => {
   const result = []
   for (const fileData of files) {
     const { file, directoryPath } = fileData
-    const uploadedItem = await _uploadPic(albumId, file, directoryPath)
+    const uploadedItem = await _uploadPic(album.id, file, directoryPath)
     result.push(uploadedItem)
   }
-  console.log(result.length + "PHOTOS CREATED FOR ALBUM" + albumId);
+  console.log(result.length + " PHOTOS CREATED FOR ALBUM " + album.title);
   return result
 }
 
@@ -174,13 +183,41 @@ const _refreshToken = async () => {
       resolve(credentials)
     })
   })
-  initTokens(tokens)
+  setTokens(tokens)
 }
 
-const initTokens = (tokens) => {
+const setTokens = (tokens) => {
   const { access_token, refresh_token } = tokens;
-  oauth2Client.setCredentials({ refresh_token: refresh_token, forceRefreshOnFailure: true });
   TOKEN = access_token;
   PHOTOS = new Photos(TOKEN);
-  console.log("NEW TOKEN" + TOKEN)
+  REFRESH_TOKEN = refresh_token ? _saveRefreshToken(refresh_token) : _getRefreshToken()
+  oauth2Client.setCredentials({ refresh_token: REFRESH_TOKEN, forceRefreshOnFailure: true });
+  console.log({TOKEN,PHOTOS,REFRESH_TOKEN})
+}
+
+const _saveRefreshToken = async (refreshToken) => {
+  fs.writeFileSync(REFRESH_TOKEN_JSON_PATH, JSON.stringify({ refresh_token: refreshToken }), 'utf8')
+  return refreshToken
+}
+
+const _getRefreshToken = async () => {
+  let result = ""
+  try {
+    const { refresh_token } = await require(REFRESH_TOKEN_JSON_PATH)
+    result = refresh_token
+  } catch (err) { }
+  return result
+}
+
+const _checkAuth = async () => {
+  if (TOKEN) {
+    return
+  }
+  const refresh_token = await _getRefreshToken()
+  if (!refresh_token) {
+    return false
+  }
+  oauth2Client.setCredentials({ refresh_token, forceRefreshOnFailure: true });
+  await _refreshToken()
+  return true
 }
