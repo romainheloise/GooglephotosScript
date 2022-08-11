@@ -133,7 +133,6 @@ const _uploadPic = async (album, file, directoryPath, retry = 0) => {
     if (retry <= 10) {
       await _uploadPic(album.id, file, directoryPath, incRetry)
     }
-    console.log("CHIEEEEEERRR");
   }
 }
 
@@ -183,7 +182,9 @@ const _delay = async (value = 3000) => {
 const _refreshToken = async () => {
   const tokens = await new Promise((resolve) => {
     oauth2Client.refreshAccessToken((err, credentials) => {
-      console.log("ERROR REFESHING TOKEN", err)
+      if (err) {
+        console.log("ERROR REFESHING TOKEN", err)
+      }
       resolve(credentials)
     })
   })
@@ -226,5 +227,3 @@ const _checkAuth = async () => {
   await _refreshToken()
   return true
 }
-
-// ALBUM FAILED : ALBUMAMzSRvLoO68nK1IU-H6jZTaJ_rMlucz40i5OciQTC3gwxZ9CyjltbiVddy5JqS5q8l4SWayaaaYK
